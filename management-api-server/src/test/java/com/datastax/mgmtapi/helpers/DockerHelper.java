@@ -240,7 +240,7 @@ public class DockerHelper
                 @Override
                 public void onNext(BuildResponseItem item)
                 {
-                    System.out.println("" + item);
+                    System.out.print(item.getStream());
                     super.onNext(item);
                 }
             };
@@ -313,7 +313,7 @@ public class DockerHelper
             @Override
             public void onNext(Frame item)
             {
-                logger.info(new String(item.getPayload()));
+                System.out.print(new String(item.getPayload()));
             }
         });
 
