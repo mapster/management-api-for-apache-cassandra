@@ -26,12 +26,14 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectExecResponse;
 import com.github.dockerjava.api.command.ListContainersCmd;
+import com.github.dockerjava.api.command.ListImagesCmd;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.BuildResponseItem;
 import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.ExposedPort;
 import com.github.dockerjava.api.model.Frame;
 import com.github.dockerjava.api.model.HostConfig;
+import com.github.dockerjava.api.model.Image;
 import com.github.dockerjava.api.model.PortBinding;
 import com.github.dockerjava.api.model.Ports;
 import com.github.dockerjava.api.model.Volume;
@@ -41,6 +43,7 @@ import com.github.dockerjava.core.DockerClientConfig;
 import com.github.dockerjava.core.command.BuildImageResultCallback;
 import com.github.dockerjava.core.command.ExecStartResultCallback;
 import com.github.dockerjava.core.command.LogContainerResultCallback;
+import java.util.Iterator;
 import org.apache.http.HttpStatus;
 
 
@@ -192,10 +195,6 @@ public class DockerHelper
             throw new Exception("Command '" + String.join(" ", pb.command() + "' return error code: " + exitCode));
         }
     }
-    private String startDocker(File dockerFile, File baseDir, String target, String name, List<Integer> ports, List<String> volumeDescList, List<String> envList, List<String> cmdList)
-    {
-        return startDocker(dockerFile, baseDir, target, name, ports, volumeDescList, envList, cmdList, false);
-    }
 
     private String startDocker(File dockerFile, File baseDir, String target, String name, List<Integer> ports, List<String> volumeDescList, List<String> envList, List<String> cmdList, boolean useBuildx)
     {
@@ -227,37 +226,46 @@ public class DockerHelper
             return containerId.getId();
         }
 
-        BuildImageResultCallback callback = new BuildImageResultCallback()
-        {
-            @Override
-            public void onNext(BuildResponseItem item)
-            {
-                System.out.println("" + item);
-                super.onNext(item);
-            }
-        };
+        // see if we have the image already built
+        final String imageName = String.format("%s-%s-test", name, dockerFile.getName()).toLowerCase();
+        Image image = searchImages(imageName);
+        if (image != null) {
+            logger.info(String.format("An image named %s already exists, we should be able to skip the image build process", imageName));
+        } else {
+            logger.info(String.format("No image named %s exists, we need to build it", imageName));
 
-        logger.info("Building container: " + name + " from " + dockerFile);
-        if (useBuildx)
-        {
-            try
+            BuildImageResultCallback callback = new BuildImageResultCallback()
             {
-                buildImageWithBuildx(dockerFile, baseDir, target, name);
-            }
-            catch (Exception e)
+                @Override
+                public void onNext(BuildResponseItem item)
+                {
+                    System.out.println("" + item);
+                    super.onNext(item);
+                }
+            };
+
+            logger.info(String.format("Building container: name=%s, Dockerfile=%s, image name=%s", name, dockerFile.getPath(), imageName));
+            if (useBuildx)
             {
-                e.printStackTrace();
-                logger.error("Unable to build image");
+                try
+                {
+                    buildImageWithBuildx(dockerFile, baseDir, target, imageName);
+                }
+                catch (Exception e)
+                {
+                    e.printStackTrace();
+                    logger.error("Unable to build image");
+                }
             }
-        }
-        else
-        {
-            dockerClient.buildImageCmd()
-                .withBaseDirectory(baseDir)
-                .withDockerfile(dockerFile)
-                .withTags(Sets.newHashSet(name))
-                .exec(callback)
-                .awaitImageId();
+            else
+            {
+                dockerClient.buildImageCmd()
+                    .withBaseDirectory(baseDir)
+                    .withDockerfile(dockerFile)
+                    .withTags(Sets.newHashSet(imageName))
+                    .exec(callback)
+                    .awaitImageId();
+            }
         }
 
         List<ExposedPort> tcpPorts = new ArrayList<>();
@@ -285,7 +293,7 @@ public class DockerHelper
 
         CreateContainerResponse containerResponse;
 
-        containerResponse = dockerClient.createContainerCmd(name)
+        containerResponse = dockerClient.createContainerCmd(imageName)
                 .withCmd(cmdList)
                 .withEnv(envList)
                 .withExposedPorts(tcpPorts)
@@ -329,6 +337,35 @@ public class DockerHelper
             logger.info(String.format("The container %s is already running", name));
 
             return runningContainers.get(0);
+        }
+        return null;
+    }
+
+    private Image searchImages(String imageName)
+    {
+        ListImagesCmd listImagesCmd = dockerClient.listImagesCmd();
+        List<Image> images = null;
+        logger.info(String.format("Searching for image named %s", imageName));
+        try {
+            images = listImagesCmd.exec();
+        } catch (Exception e) {
+            logger.error("Failed to fetch images", e);
+            System.exit(1);
+        }
+        if (!images.isEmpty()) {
+            logger.info(String.format("at least one image found"));
+            Iterator<Image> it = images.iterator();
+            while (it.hasNext()) {
+                Image image = it.next();
+                String[] tags = image.getRepoTags();
+                for (int i=0; i< tags.length; ++i) {
+                    logger.info(String.format("Comparing image tag %s to desired image tag: %s", tags[i], imageName));
+                    if (tags[i].startsWith(imageName)) {
+                        logger.info(String.format("Found an image with ID %s", imageName));
+                        return image;
+                    }
+                }
+            }
         }
         return null;
     }
