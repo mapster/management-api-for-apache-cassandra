@@ -144,15 +144,6 @@ fi
 		MGMT_API_ARGS="$MGMT_API_ARGS $MGMT_API_NO_KEEP_ALIVE"
 	fi
 
-        # We need different compiled versions of the agent for Cassandra 3.x and 4.x
-        if [ ! -h ${MAAC_PATH}/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar ]; then
-            if [ "${CASSANDRA_VERSION:0:1}" = "4" ]; then
-                ln -s ${MAAC_PATH}/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar ${MAAC_PATH}/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar
-            else
-                ln -s ${MAAC_PATH}/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar ${MAAC_PATH}/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar
-            fi
-        fi
-
 	MGMT_API_JAR="$(find "${MAAC_PATH}" -name *server*.jar)"
 
 	echo "Running" java ${MGMT_API_JAVA_OPTS} -Xms128m -Xmx128m -jar "$MGMT_API_JAR" $MGMT_API_ARGS

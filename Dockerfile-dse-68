@@ -1,8 +1,8 @@
-ARG CASSANDRA_VERSION=6.8.0
+ARG CASSANDRA_VERSION=6.8.9
 
 FROM management-api-for-dse-builder as builder
 
-FROM datastax/dse-server:6.8.0
+FROM datastax/dse-server:${CASSANDRA_VERSION}
 
 # accept the License
 ENV DS_LICENSE=accept
@@ -14,13 +14,8 @@ ENV CASSANDRA_HOME ${CASSANDRA_PATH}
 ENV CASSANDRA_CONF ${CASSANDRA_PATH}/resources/cassandra/conf
 ENV CASSANDRA_LOGS ${CASSANDRA_PATH}/logs
 
-COPY --from=builder /build/management-api-common/target/datastax-mgmtapi-common-0.1.0-SNAPSHOT.jar ${MAAC_PATH}/
-COPY --from=builder /build/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar ${MAAC_PATH}/
-COPY --from=builder /build/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar ${MAAC_PATH}/
+COPY --from=builder /build/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar ${MAAC_PATH}/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar
 COPY --from=builder /build/management-api-server/target/datastax-mgmtapi-server-0.1.0-SNAPSHOT.jar ${MAAC_PATH}/
-COPY --from=builder /build/management-api-shim-3.x/target/datastax-mgmtapi-shim-3.x-0.1.0-SNAPSHOT.jar ${MAAC_PATH}/
-COPY --from=builder /build/management-api-shim-4.x/target/datastax-mgmtapi-shim-4.x-0.1.0-SNAPSHOT.jar ${MAAC_PATH}/
-COPY --from=builder /build/management-api-shim-dse-6.8/target/datastax-mgmtapi-shim-dse-6.8-0.1.0-SNAPSHOT.jar ${MAAC_PATH}/
 
 USER root
 ENV TINI_VERSION v0.18.0
