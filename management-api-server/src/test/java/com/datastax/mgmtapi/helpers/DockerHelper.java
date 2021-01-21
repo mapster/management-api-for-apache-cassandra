@@ -181,6 +181,7 @@ public class DockerHelper
     private void buildImageWithBuildx(File dockerFile, File baseDir, String target, String name) throws Exception {
         ProcessBuilder pb = new ProcessBuilder("docker", "buildx", "build",
             "--load",
+            "--progress", "plain",
             "--tag", name,
             "--file", dockerFile.getPath(),
             "--target", target,
