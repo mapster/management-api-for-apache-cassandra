@@ -70,7 +70,7 @@ public class DockerHelper
                             try {
                                 dockerClient.removeImageCmd(image.getId()).exec();
                             } catch (Throwable e) {
-                                logger.info(String.format("Removing image %s di not complete cleanly", imageName));
+                                logger.info(String.format("Removing image %s did not complete cleanly", imageName));
                             }
                         }
                     }
