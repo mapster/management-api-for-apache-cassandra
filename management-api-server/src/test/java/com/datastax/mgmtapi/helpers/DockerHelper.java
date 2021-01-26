@@ -13,7 +13,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Lists;
@@ -43,17 +46,46 @@ import com.github.dockerjava.core.DockerClientConfig;
 import com.github.dockerjava.core.command.BuildImageResultCallback;
 import com.github.dockerjava.core.command.ExecStartResultCallback;
 import com.github.dockerjava.core.command.LogContainerResultCallback;
-import java.util.Iterator;
 import org.apache.http.HttpStatus;
 
 
 public class DockerHelper
 {
+    private static Logger logger = LoggerFactory.getLogger(DockerHelper.class);
+
+    // Keep track of Docker images built during test runs
+    private static final Set<String> IMAGE_NAMES = new HashSet<>();
+
+    // Cleanup hook to remove Docker images built for tests
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                if (!Boolean.getBoolean("skip_test_docker_image_cleanup")) {
+                    logger.info("Cleaning up test Docker images");
+                    DockerClient dockerClient = DockerClientBuilder.getInstance(DefaultDockerClientConfig.createDefaultConfigBuilder().build()).build();
+                    for (String imageName : IMAGE_NAMES) {
+                        Image image = searchImages(imageName, dockerClient);
+                        if (image != null) {
+                            try {
+                                dockerClient.removeImageCmd(image.getId()).exec();
+                            } catch (Throwable e) {
+                                logger.info(String.format("Removing image %s di not complete cleanly", imageName));
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    logger.info("Skipping test Docker image cleanup");
+                }
+            }
+        });
+    }
     private DockerClientConfig config;
     private DockerClient dockerClient;
     private String container;
     private File dataDir;
-    private Logger logger = LoggerFactory.getLogger(DockerHelper.class);
 
     public DockerHelper(File dataDir) {
         this.config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
@@ -229,18 +261,17 @@ public class DockerHelper
 
         // see if we have the image already built
         final String imageName = String.format("%s-%s-test", name, dockerFile.getName()).toLowerCase();
-        Image image = searchImages(imageName);
-        if (image != null) {
-            logger.info(String.format("An image named %s already exists, we should be able to skip the image build process", imageName));
-        } else {
-            logger.info(String.format("No image named %s exists, we need to build it", imageName));
-
+        Image image = searchImages(imageName, dockerClient);
+        if (image == null)
+        {
             BuildImageResultCallback callback = new BuildImageResultCallback()
             {
                 @Override
                 public void onNext(BuildResponseItem item)
                 {
-                    System.out.print(item.getStream());
+                    String stream = item.getStream();
+                    if (stream != null && !stream.equals("null"))
+                        System.out.print(item.getStream());
                     super.onNext(item);
                 }
             };
@@ -267,6 +298,8 @@ public class DockerHelper
                     .exec(callback)
                     .awaitImageId();
             }
+            logger.info(String.format("Adding image named %s to set of images to be cleaned up", imageName));
+            IMAGE_NAMES.add(imageName);
         }
 
         List<ExposedPort> tcpPorts = new ArrayList<>();
@@ -342,32 +375,30 @@ public class DockerHelper
         return null;
     }
 
-    private Image searchImages(String imageName)
+    private static Image searchImages(String imageName, DockerClient dockerClient)
     {
         ListImagesCmd listImagesCmd = dockerClient.listImagesCmd();
         List<Image> images = null;
         logger.info(String.format("Searching for image named %s", imageName));
         try {
             images = listImagesCmd.exec();
-        } catch (Exception e) {
-            logger.error("Failed to fetch images", e);
-            System.exit(1);
-        }
-        if (!images.isEmpty()) {
-            logger.info(String.format("at least one image found"));
-            Iterator<Image> it = images.iterator();
-            while (it.hasNext()) {
-                Image image = it.next();
-                String[] tags = image.getRepoTags();
-                for (int i=0; i< tags.length; ++i) {
-                    logger.info(String.format("Comparing image tag %s to desired image tag: %s", tags[i], imageName));
-                    if (tags[i].startsWith(imageName)) {
-                        logger.info(String.format("Found an image with ID %s", imageName));
-                        return image;
+            if (!images.isEmpty()) {
+                Iterator<Image> it = images.iterator();
+                while (it.hasNext()) {
+                    Image image = it.next();
+                    String[] tags = image.getRepoTags();
+                    for (int i=0; i< tags.length; ++i) {
+                        if (tags[i].startsWith(imageName)) {
+                            logger.info(String.format("Found an image named %s", imageName));
+                            return image;
+                        }
                     }
                 }
             }
+        } catch (Exception e) {
+            logger.warn("Failed to fetch images", e);
         }
+        logger.info(String.format("No image named %s found", imageName));
         return null;
     }
 
