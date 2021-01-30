@@ -33,7 +33,7 @@
                 </dependency>
                 <dependency>
                     <groupId>com.datastax</groupId>
-                    <artifactId>datastax-mgmtapi-shim-4.x</artifactId>
+                    <artifactId>datastax-mgmtapi-agent-common</artifactId>
                     <version>${project.version}</version>
                 </dependency>
                 <dependency>

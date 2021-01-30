@@ -387,10 +387,17 @@ public class DockerHelper
                 while (it.hasNext()) {
                     Image image = it.next();
                     String[] tags = image.getRepoTags();
-                    for (int i=0; i< tags.length; ++i) {
-                        if (tags[i].startsWith(imageName)) {
-                            logger.info(String.format("Found an image named %s", imageName));
-                            return image;
+                    if (tags == null)
+                    {
+                        logger.warn(String.format("Image has NULL tags: %s", image.getId()));
+                    }
+                    else
+                    {
+                        for (int i=0; i< tags.length; ++i) {
+                            if (tags[i].startsWith(imageName)) {
+                                logger.info(String.format("Found an image named %s", imageName));
+                                return image;
+                            }
                         }
                     }
                 }
