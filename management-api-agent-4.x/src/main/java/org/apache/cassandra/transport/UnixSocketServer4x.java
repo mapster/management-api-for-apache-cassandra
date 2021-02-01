@@ -275,31 +275,6 @@ public class UnixSocketServer4x
                             // v5 not yet supported
                             logger.warn("PROTOCOL v5 not yet supported.");
 
-                            // in this case we need to defer configuring the pipeline until after the response
-                            // has been sent, as the frame encoding specified in v5 should not be applied to
-                            // the STARTUP response.
-//                            allocator.allocate(inbound.header.bodySizeInBytes);
-//                            promise = AsyncChannelPromise.withListener(ctx, future -> {
-//                                if (future.isSuccess())
-//                                {
-//                                    logger.debug("Response to STARTUP sent, configuring pipeline for {}", inbound.header.version);
-//                                    configurator.configureModernPipeline(ctx, allocator, inbound.header.version, startup.options);
-//                                    allocator.release(inbound.header.bodySizeInBytes);
-//                                }
-//                                else
-//                                {
-//                                    Throwable cause = future.cause();
-//                                    if (null == cause)
-//                                        cause = new ServerError("Unexpected error establishing connection");
-//                                    logger.warn("Writing response to STARTUP failed, unable to configure pipeline", cause);
-//                                    ErrorMessage error = ErrorMessage.fromException(cause);
-//                                    Envelope response = error.encode(inbound.header.version);
-//                                    ChannelPromise closeChannel = AsyncChannelPromise.withListener(ctx, f -> ctx.close());
-//                                    ctx.writeAndFlush(response, closeChannel);
-//                                    if (ctx.channel().isOpen())
-//                                        ctx.channel().close();
-//                                }
-//                            });
                         }
                         // no need to configure the pipeline asynchronously in this case
                         // the capacity obtained from allocator for the STARTUP message
